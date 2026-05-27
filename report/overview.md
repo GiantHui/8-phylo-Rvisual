@@ -1,6 +1,6 @@
 # Pipeline Overview
 
-Generated: 2026-05-26
+Generated: 2026-05-27
 
 ## Purpose
 
@@ -15,7 +15,7 @@ The current example is configured for the Genghis Khan Y-chromosome project and 
 ## Directory Layout
 
 ```text
-8-ggtree-visual/
+8-phylo-Rvisual/
 ├── conf/
 │   ├── Config.yaml
 │   ├── VisualDesign.md

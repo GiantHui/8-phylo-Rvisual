@@ -71,7 +71,8 @@ read_design_config <- function(path) {
         output_prefix = "c2a1a3",
         full_tree_clade_labels = "B,C2,C2a1a3,C2a1a1,C2a1a2,C2a1b,C2b",
         subtree_clade_labels = "C2a1a3,C2a1a3a1,C2a1a3a2,C2a1a3a6",
-        subtree_fine_clade_labels = "C2a1a3a1a1,C2a1a3a1a2,C2a1a3a6b"
+        subtree_fine_clade_labels = "C2a1a3a1a1,C2a1a3a1a2,C2a1a3a6b",
+        bold_tip_clades = "C2a1a3a6"
     )
     if (is.null(path) || is.na(path) || !file.exists(path)) return(defaults)
     df <- readr::read_tsv(path, show_col_types = FALSE, col_types = "cc")
@@ -132,6 +133,7 @@ OUTPUT_PREFIX <- safe_prefix(DESIGN_CONFIG[["output_prefix"]] %||% TARGET_CLADE)
 FULL_TREE_CLADE_LABELS <- split_design_list(DESIGN_CONFIG[["full_tree_clade_labels"]])
 SUBTREE_CLADE_LABELS <- split_design_list(DESIGN_CONFIG[["subtree_clade_labels"]])
 SUBTREE_FINE_CLADE_LABELS <- split_design_list(DESIGN_CONFIG[["subtree_fine_clade_labels"]])
+BOLD_TIP_CLADES <- split_design_list(DESIGN_CONFIG[["bold_tip_clades"]])
 
 # ============================================================
 # 数据加载
@@ -144,6 +146,12 @@ annot <- read_tsv(ANNOT_FILE, show_col_types = FALSE) |>
     mutate(
         is_new_sample = as.logical(is_new_sample),
         has_metadata  = as.logical(has_metadata),
+        is_bold_tip = ifelse(
+            length(BOLD_TIP_CLADES) > 0,
+            Reduce(`|`, lapply(BOLD_TIP_CLADES, function(clade) startsWith(haplogroup, clade))),
+            FALSE
+        ),
+        sample_status = ifelse(data_published == "published", "Published", "New"),
         language_detailed = ifelse(
             is.na(language_detailed) | language_detailed == "NA",
             NA_character_, language_detailed
@@ -172,6 +180,19 @@ region_labels <- c(
 lang_color_df <- read_tsv(LANG_COLORS_F, show_col_types = FALSE)
 lang_colors   <- setNames(lang_color_df$lang_color, lang_color_df$language_detailed)
 lang_colors   <- lang_colors[!is.na(names(lang_colors))]
+
+status_colors <- c(
+    Published = "#4D4D4D",
+    New = "#00A6A6",
+    strip_space = "#FFFFFF",
+    strip_space_2 = "#FFFFFF"
+)
+status_labels <- c(
+    Published = "Published",
+    New = "New / Unpublished",
+    strip_space = "Spacer",
+    strip_space_2 = "Spacer"
+)
 
 all_colors <- c(branch_colors, pop_colors)
 color_breaks <- names(all_colors)
@@ -258,12 +279,15 @@ macro_grp <- tibble(macro = FULL_TREE_CLADE_LABELS) |>
 
 macro_labels_df <- macro_grp |>
     rowwise() |>
-    mutate(y = median(tip_y_df$y[tip_y_df$label %in% unlist(labels)], na.rm = TRUE)) |>
+    mutate(node = safe_mrca(tree, unlist(labels))) |>
     ungroup() |>
-    filter(!is.na(y), n >= 2) |>
+    filter(!is.na(node), n >= 2) |>
+    left_join(tree_pos_df |> select(node, x, y), by = "node") |>
+    filter(!is.na(x), !is.na(y)) |>
     mutate(
         clade_label = paste0(macro, " (", n, ")"),
-        x = tree_max_x * 1.24
+        label_x = x - tree_max_x * 0.22,
+        label_y = y
     ) |>
     arrange(y)
 message("[INFO] 宏单倍群标注节点数: ", nrow(macro_labels_df))
@@ -300,9 +324,9 @@ p_full <- ggtree(
         aes(color = pop_group),
         shape = 17, size = 0.85, na.rm = TRUE
     ) +
-    # 已知样本 ID：深灰色小字
+    # 非重点支系 ID：常规字重
     geom_tiplab(
-        data     = function(d) filter(d, isTip & !(is_new_sample %in% TRUE)),
+        data     = function(d) filter(d, isTip & !(is_bold_tip %in% TRUE)),
         aes(label = display_label),
         color    = "grey40",
         align    = FALSE,
@@ -311,9 +335,9 @@ p_full <- ggtree(
         hjust    = -0.06,
         na.rm    = TRUE
     ) +
-    # 新样本 ID：彩色加粗，略大
+    # 重点支系 ID：按重点单倍群加粗，不再由发表状态决定。
     geom_tiplab(
-        data     = function(d) filter(d, isTip & (is_new_sample %in% TRUE)),
+        data     = function(d) filter(d, isTip & (is_bold_tip %in% TRUE)),
         aes(label = display_label, color = pop_group),
         align    = FALSE,
         size     = pt2size(font_full + 0.2),
@@ -322,12 +346,21 @@ p_full <- ggtree(
         hjust    = -0.06,
         na.rm    = TRUE
     ) +
-    # 宏单倍群标注放在树右侧空白区，避免遮挡分支与 tip。
+    # 宏单倍群标注用箭头指向 MRCA 节点，避免放到 tip 标签之后。
+    geom_segment(
+        data          = macro_labels_df,
+        aes(x = label_x, y = label_y, xend = x, yend = y),
+        inherit.aes   = FALSE,
+        color         = "black",
+        linewidth     = 0.14,
+        arrow         = arrow(length = unit(0.75, "mm"), type = "closed"),
+        na.rm         = TRUE
+    ) +
     geom_label(
         data          = macro_labels_df,
-        aes(x = x, y = y, label = clade_label),
+        aes(x = label_x, y = label_y, label = clade_label),
         inherit.aes   = FALSE,
-        size          = pt2size(4),
+        size          = pt2size(3.6),
         family = "Arial",
         fontface      = "bold",
         fill          = alpha("white", 0.88),
@@ -343,42 +376,54 @@ p_full <- ggtree(
         name     = "Haplogroup / Population",
         na.value = "#999999"
     ) +
-    hexpand(0.48) +
+    xlim(-tree_max_x * 0.36, NA) +
+    hexpand(0.70) +
     theme_tree(plot.margin = margin(3, 4, 3, 3, "mm")) +
     theme(
         text            = element_text(family = "Arial"),
         legend.text     = element_text(family = "Arial", size = 5),
         legend.title    = element_text(family = "Arial", size = 6, face = "bold"),
-        legend.position = c(0.80, 0.18),
+        legend.position = c(0.88, 0.34),
         legend.box      = "vertical",
         legend.background = element_rect(fill = alpha("white", 0.78), color = "grey80"),
         legend.key.size = unit(2.4, "mm")
     )
 
-# 语系条带
-lang_mat <- annot |>
+# 最近 ID 的状态条带 + 语系条带，中间留白分隔。
+full_strip_mat <- annot |>
     filter(label %in% tree$tip.label) |>
-    select(label, language_detailed) |>
+    mutate(spacer_strip = "strip_space") |>
+    select(label, Status = sample_status, spacer_strip, Language = language_detailed) |>
     column_to_rownames("label")
+colnames(full_strip_mat) <- c("Status", " ", "Language")
+
+full_strip_colors <- c(status_colors, lang_colors)
+full_strip_labels <- c(status_labels, title_case_label(names(lang_colors)))
+full_strip_breaks <- setdiff(names(full_strip_colors), c("strip_space", "strip_space_2"))
 
 suppressWarnings({
     p_full_final <- gheatmap(
         p        = p_full,
-        data     = lang_mat,
-        width    = 0.04,
+        data     = full_strip_mat,
+        width    = 0.08,
         offset   = offset_full,
-        colnames = FALSE,
-        color    = NA
+        colnames = TRUE,
+        colnames_angle = 90,
+        colnames_position = "top",
+        font.size = 2.0,
+        color    = "#FFFFFF"
     ) +
         scale_fill_manual(
-            values   = lang_colors,
-            name     = "Language family",
+            values   = full_strip_colors,
+            breaks   = full_strip_breaks,
+            labels   = full_strip_labels[full_strip_breaks],
+            name     = "Annotation Strip",
             na.value = "#CCCCCC"
         ) +
         theme(
             legend.text       = element_text(family = "Arial", size = 5),
             legend.title      = element_text(family = "Arial", size = 6, face = "bold"),
-            legend.position   = c(0.80, 0.18),
+            legend.position   = c(0.88, 0.34),
             legend.box        = "vertical",
             legend.background = element_rect(fill = alpha("white", 0.78), color = "grey80"),
             legend.key.size   = unit(2.4, "mm")
@@ -476,7 +521,7 @@ p_sub <- ggtree(
         shape = 17, size = 1.1, na.rm = TRUE
     ) +
     geom_tiplab(
-        data     = function(d) filter(d, isTip & !(is_new_sample %in% TRUE)),
+        data     = function(d) filter(d, isTip & !(is_bold_tip %in% TRUE)),
         aes(label = display_label, color = region_group),
         align    = FALSE,
         size     = pt2size(font_sub),
@@ -485,7 +530,7 @@ p_sub <- ggtree(
         na.rm    = TRUE
     ) +
     geom_tiplab(
-        data     = function(d) filter(d, isTip & (is_new_sample %in% TRUE)),
+        data     = function(d) filter(d, isTip & (is_bold_tip %in% TRUE)),
         aes(label = display_label, color = region_group),
         align    = FALSE,
         size     = pt2size(font_sub),
@@ -530,7 +575,7 @@ p_sub <- ggtree(
         text            = element_text(family = "Arial"),
         legend.text       = element_text(family = "Arial", size = 5),
         legend.title      = element_text(family = "Arial", size = 6, face = "bold"),
-        legend.position   = c(0.20, 0.16),
+        legend.position   = c(0.20, 0.34),
         legend.box        = "vertical",
         legend.background = element_rect(fill = alpha("white", 0.78), color = "grey80"),
         legend.key.size   = unit(2.4, "mm")
@@ -538,26 +583,29 @@ p_sub <- ggtree(
 
 sub_strip_mat <- sub_annot |>
     mutate(
+        Status = sample_status,
+        spacer_status_region = "strip_space",
         District = region_group,
-        spacer_strip = "strip_space",
+        spacer_region_clade = "strip_space_2",
         Clade = haplogroup_group
     ) |>
-    select(label, District, spacer_strip, Clade) |>
+    select(label, Status, spacer_status_region, District, spacer_region_clade, Clade) |>
     column_to_rownames("label")
-colnames(sub_strip_mat) <- c("District", " ", "Clade")
+colnames(sub_strip_mat) <- c("Status", " ", "District", "  ", "Clade")
 
-sub_strip_colors <- c(region_colors, strip_space = "#FFFFFF", branch_colors)
+sub_strip_colors <- c(status_colors, region_colors, branch_colors)
 sub_strip_labels <- c(
+    status_labels,
     region_labels[names(region_colors)],
-    strip_space = "Spacer",
     color_labels[names(branch_colors)]
 )
+sub_strip_breaks <- setdiff(names(sub_strip_colors), c("strip_space", "strip_space_2"))
 
 suppressWarnings({
     p_sub_final <- gheatmap(
         p        = p_sub,
         data     = sub_strip_mat,
-        width    = 0.10,
+        width    = 0.14,
         offset   = offset_sub,
         colnames = TRUE,
         colnames_angle = 90,
@@ -567,16 +615,15 @@ suppressWarnings({
     ) +
         scale_fill_manual(
             values   = sub_strip_colors,
-            breaks   = names(sub_strip_colors),
-            labels   = sub_strip_labels,
+            breaks   = sub_strip_breaks,
+            labels   = sub_strip_labels[sub_strip_breaks],
             name     = "Annotation Strip",
-            na.value = "#CCCCCC",
-            guide    = "none"
+            na.value = "#CCCCCC"
         ) +
         theme(
             legend.text       = element_text(family = "Arial", size = 5),
             legend.title      = element_text(family = "Arial", size = 6, face = "bold"),
-            legend.position   = c(0.20, 0.16),
+            legend.position   = c(0.20, 0.34),
             legend.box        = "vertical",
             legend.background = element_rect(fill = alpha("white", 0.78), color = "grey80"),
             legend.key.size   = unit(2.4, "mm")
@@ -589,47 +636,6 @@ ggsave(file.path(OUT_SUBTREE, paste0(OUTPUT_PREFIX, "_subtree.png")),
 ggsave(file.path(OUT_SUBTREE, paste0(OUTPUT_PREFIX, "_subtree.pdf")),
        p_sub_final, width = FIG_W_MM, height = FIG_H_MM, units = "mm", device = cairo_pdf)
 message("[OK] 子树图已保存")
-
-# ============================================================
-# 图 3：颜色图例汇总
-# ============================================================
-message("[INFO] 生成颜色图例...")
-
-make_color_legend_plot <- function(color_vec, title_str) {
-    df <- data.frame(
-        grp   = factor(names(color_vec), levels = names(color_vec)),
-        color = unname(color_vec),
-        y     = seq_along(color_vec),
-        stringsAsFactors = FALSE
-    )
-    ggplot(df, aes(x = 0, y = y, fill = grp)) +
-        geom_tile(width = 0.5, height = 0.8) +
-        geom_text(aes(x = 0.4, label = grp),
-                  hjust = 0, size = pt2size(7), family = "Arial") +
-        scale_fill_manual(values = setNames(df$color, df$grp), guide = "none") +
-        xlim(-0.5, 5) +
-        labs(title = title_str, x = NULL, y = NULL) +
-        theme_void() +
-        theme(
-            plot.title  = element_text(family = "Arial", size = 8, face = "bold"),
-            plot.margin = margin(2, 2, 2, 2, "mm")
-        )
-}
-
-branch_legend_colors <- branch_colors[names(branch_colors) != "0"]
-
-p_leg_branch <- make_color_legend_plot(branch_legend_colors, "Haplogroup Branch")
-p_leg_pop    <- make_color_legend_plot(pop_colors,           "Population Group")
-p_leg_lang   <- make_color_legend_plot(lang_colors,          "Language")
-
-p_legends <- p_leg_branch + p_leg_pop + p_leg_lang +
-    plot_layout(ncol = 3) +
-    plot_annotation(title = "Color Reference")
-
-ggsave(file.path(OUT_FULL_TREE, "color_legend.png"),
-       p_legends, width = FIG_W_MM, height = 90, units = "mm", dpi = DPI)
-ggsave(file.path(OUT_FULL_TREE, "color_legend.pdf"),
-       p_legends, width = FIG_W_MM, height = 90, units = "mm", device = cairo_pdf)
 
 message("[INFO] 全部可视化完成。")
 message("  全树图目录: ", OUT_FULL_TREE)

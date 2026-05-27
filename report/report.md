@@ -1,6 +1,6 @@
 # Genghis Khan Y-Chromosome ML Tree Visualization Report
 
-Generated: 2026-05-26
+Generated: 2026-05-27
 
 ## Pipeline Status
 
@@ -47,14 +47,12 @@ Figure outputs:
 
 - `output/chengjisihan/figures/full_tree/full_tree_overview.png`
 - `output/chengjisihan/figures/full_tree/full_tree_overview.pdf`
-- `output/chengjisihan/figures/full_tree/color_legend.png`
-- `output/chengjisihan/figures/full_tree/color_legend.pdf`
 - `output/chengjisihan/figures/subtree/c2a1a3_subtree.png`
 - `output/chengjisihan/figures/subtree/c2a1a3_subtree.pdf`
 
 ## Dataset Summary
 
-The latest annotation table contains 337 tree tips, all matched to metadata. Thirty-five tips are marked as unpublished/new according to `data_published`; BDC-prefixed samples are treated as published by the design file rule.
+The latest annotation table contains 337 tree tips, all matched to metadata. One hundred eleven tips are marked as unpublished/new according to `Status`/`data_published`; BDC-prefixed samples are now present in the main metadata table and are marked as published.
 
 Major haplogroup groups in the full tree:
 
@@ -65,20 +63,20 @@ Major haplogroup groups in the full tree:
 | R | 36 |
 | C2a1a3a2 | 25 |
 | J | 25 |
-| C2a1a1 | 19 |
 | C2a1a3a6 | 19 |
+| C2a1a1 | 19 |
 | C2b | 15 |
 | C2a1a2 | 13 |
-| L | 12 |
 | Q | 12 |
+| L | 12 |
 | N | 10 |
 | O | 10 |
 | C2a1b | 5 |
-| D | 5 |
 | G | 5 |
+| D | 5 |
+| I | 3 |
 | B | 3 |
 | E | 3 |
-| I | 3 |
 | H | 2 |
 | C2a1a3a4 | 1 |
 
@@ -115,22 +113,22 @@ Language composition in the target subtree:
 | Sinitic | 77 |
 | Tungusic | 25 |
 | Mongolic | 25 |
-| Turkic | 11 |
-| Kazakh | 9 |
+| Turkic | 20 |
 | Indo-European | 7 |
 | NA | 5 |
 
 ## Figure Design
 
-The full-tree overview uses branch colors to show haplogroup groups and marks macro-haplogroups specified in `VisualDesign.md`. Legends are embedded in blank figure space.
+The full-tree overview uses branch colors to show haplogroup groups and marks macro-haplogroups specified in `VisualDesign.md` with arrow callouts pointing to MRCA nodes. Legends are embedded in blank figure space.
 
 The target subtree separates three visual encodings:
 
 - Branch color: clade identity.
 - Tip label and tip point color: district/geographic group.
-- Annotation strips: `District` and `Clade`, separated by a blank spacer column.
+- Bold tip labels: focal downstream clades listed in `bold_tip_clades`; currently `C2a1a3a6` and downstream tips.
+- Annotation strips: `Status`, `District`, and `Clade`, separated by blank spacer columns. The `Status` strip is closest to the tip labels.
 
-Clade labels in the subtree are placed in nearby blank space and connected to MRCA nodes using thin black arrows. Fonts use the Arial family; PDF output embeds Arial TrueType fonts so text remains editable.
+The full tree uses the nearest annotation strip for `Status`, followed by a spacer and `Language`; strip legends are embedded in plot whitespace rather than exported as separate legend files. Clade labels in the subtree are placed in nearby blank space and connected to MRCA nodes using thin black arrows. Tip label bolding is controlled by haplogroup membership, not publication status. Fonts use the Arial family; PDF output embeds Arial TrueType fonts so text remains editable.
 
 ## Current Scientific Interpretation
 
@@ -147,6 +145,7 @@ For a new project, copy `conf/VisualDesign.template.md` to a project-specific Ma
 - `full_tree_clade_labels`
 - `subtree_clade_labels`
 - `subtree_fine_clade_labels`
+- `bold_tip_clades`
 - `haplogroup_group_rules`
 - `published_prefixes`
 

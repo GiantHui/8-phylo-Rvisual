@@ -35,6 +35,7 @@ output_prefix: c2a1a3
 full_tree_clade_labels: B,C2,C2a1a3,C2a1a1,C2a1a2,C2a1b,C2b,O,Q,N,J,R,L,D,E,G,H,I
 subtree_clade_labels: C2a1a3,C2a1a3a1,C2a1a3a2,C2a1a3a6
 subtree_fine_clade_labels: C2a1a3a1a1,C2a1a3a1a2,C2a1a3a6b
+bold_tip_clades: C2a1a3a6
 haplogroup_group_rules: C2a1a3a1=C2a1a3a1;C2a1a3a2=C2a1a3a2;C2a1a3a4=C2a1a3a4;C2a1a3a6=C2a1a3a6;C2a1a3=C2a1a3_base;C2a1a1=C2a1a1;C2a1a2=C2a1a2;C2a1b=C2a1b;C2b=C2b
 published_prefixes: BDC
 tip_label_format: population_region_haplogroup

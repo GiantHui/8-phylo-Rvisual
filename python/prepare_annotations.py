@@ -126,6 +126,21 @@ def _clean(val) -> str:
     return "" if s.lower() == "nan" else s
 
 
+def normalize_publication_status(*values) -> str:
+    """将元数据中的发表状态统一为 published / unpublished / unknown。"""
+    for val in values:
+        s = _clean(val)
+        if not s:
+            continue
+        low = s.lower()
+        if low in {"published", "publish", "publised", "已发表"}:
+            return "published"
+        if low in {"new", "unpublished", "unpublised", "未发表"}:
+            return "unpublished"
+        return low
+    return "unknown"
+
+
 def parse_design_file(design_file: str | None) -> dict[str, str]:
     """读取 Markdown 中的 visual_design_config 配置块。"""
     config: dict[str, str] = {
@@ -393,7 +408,11 @@ def build_annotation_table(
             lang_detailed = _clean(row.get("Language_detailed"))
             lang_family   = _clean(row.get("Language_family"))
             data_source   = _clean(row.get("Data"))
-            data_published = _clean(row.get("data_published"))
+            data_published = normalize_publication_status(
+                row.get("Status"),
+                row.get("data_published"),
+                row.get("PublishedNew"),
+            )
             has_meta = True
         else:
             haplogroup    = _extract_haplogroup_from_label(tip)
